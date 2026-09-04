@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# hermess — Hermes Agent 실행 래퍼
+#
+#   ./hermess chat                       대화형 세션 (기본 프로필)
+#   ./hermess -p backend-eng chat        특정 프로필로 대화형
+#   ./hermess -p writer chat -q "..."    단발 실행
+#   ./hermess kanban list                보드 조회
+#   ./hermess gateway start              운영 (내장 디스패처)
+#
+# HERMES_HOME 을 바꾸려면: HERMES_HOME=~/.hermes-other ./hermess ...
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+UPSTREAM="$ROOT/hermes-agent"
+
+if [ ! -d "$UPSTREAM" ]; then
+  echo "hermes-agent 클론이 없습니다. 먼저:" >&2
+  echo "  git clone https://github.com/NousResearch/hermes-agent.git" >&2
+  echo "  cd hermes-agent && uv sync --frozen" >&2
+  exit 1
+fi
+
+export PATH="$HOME/.local/bin:$PATH"
+export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes-poc}"
+export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+
+cd "$UPSTREAM"
+exec uv run ./hermes "$@"

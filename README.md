@@ -37,53 +37,78 @@ print(_update_config_for_provider('openai-codex', DEFAULT_CODEX_BASE_URL))"
 HERMES_HOME=~/.hermes-poc ../profiles/bootstrap.sh
 
 # 4. 검증 — orchestrator에 kanban_* 만 있고 terminal/file 이 없어야 정상
-uv run python -m hermes_cli.main -p orchestrator chat \
-  -q "List the exact names of every tool you have."
+cd .. && ./hermess -p orchestrator chat -q "List the exact names of every tool you have."
 ```
 
-> `hermes` 실행은 전부 `uv run python -m hermes_cli.main …` 형태다.
-> `HERMES_HOME`과 `CODEX_HOME`을 매번 export 한다.
+이후 모든 실행은 리포 루트의 `./hermess` 래퍼를 쓴다 (아래 **실행 방법**).
 
 ## 실행 방법
 
-### 단발 작업
+리포 루트의 [`./hermess`](hermess) 래퍼를 쓴다. `HERMES_HOME` / `CODEX_HOME` / `PATH` 를
+알아서 잡고 `hermes-agent/`로 이동해 실행한다.
 
 ```bash
-uv run python -m hermes_cli.main -p backend-eng chat -q "..." \
-  -m gpt-5.6-luna --provider openai-codex --reasoning high
+./hermess <아무 hermes 명령>
 ```
+
+`HERMES_HOME`은 기본 `~/.hermes-poc`이고, 바꾸려면 앞에 붙인다:
+`HERMES_HOME=~/.hermes-other ./hermess ...`
+
+### 대화형 세션
+
+```bash
+./hermess chat                    # 기본 프로필
+./hermess -p backend-eng chat     # 특정 프로필
+./hermess -p architect chat --checkpoints   # 파일을 만질 거면 체크포인트 on
+```
+
+세션 안에서 `/kanban`, `/rollback`, `/model` 같은 슬래시 커맨드를 쓴다.
+**`/rollback`은 대화형에서만 동작한다** — `-q`로 주면 그냥 문자열로 해석된다.
+
+### 단발 실행 (스크립트·자동화용)
+
+```bash
+./hermess -p backend-eng chat -q "..."     -m gpt-5.6-luna --provider openai-codex --reasoning high
+```
+
+`--reasoning`은 `low|medium|high|xhigh|max`. **유효 구간은 `low → high` 하나다**(§품질 축).
 
 ### 보드로 일 시키기 (권장)
 
 ```bash
-H="uv run python -m hermes_cli.main"
-
-# 카드 생성 — 산출물을 남기려면 반드시 dir: 또는 worktree:
-$H kanban create "제목" --body "ACCEPTANCE CRITERIA: ..." \
+# 카드 생성 — 산출물을 남기려면 반드시 dir: 또는 worktree:<절대경로>
+./hermess kanban create "제목" --body "ACCEPTANCE CRITERIA: ..." \
     --assignee backend-eng --workspace dir:/abs/path
 
 # 의존성 (부모 done 시 자식이 자동 ready)
-$H kanban link <parent> <child>
+./hermess kanban link <parent> <child>
 
 # 태스크 단위 모델 라우팅
-$H kanban set-model <id> gpt-5.6-sol --provider openai-codex
+./hermess kanban set-model <id> gpt-5.6-sol --provider openai-codex
 
 # 실행
-$H kanban dispatch          # 개발용 1회
-$H gateway start            # 운영: 내장 디스패처(60초 tick)
+./hermess kanban dispatch          # 개발용 1회
+./hermess gateway start            # 운영: 내장 디스패처 (60초 tick)
 
 # 관찰
-$H kanban list
-$H kanban show <id>         # 결과 · 코멘트 · 이벤트 · run 이력
-$H kanban list --json       # 외부 연동용 (ADR-004)
+./hermess kanban list
+./hermess kanban show <id>         # 결과 · 코멘트 · 이벤트 · run 이력
+./hermess kanban list --json       # 외부 연동용 (ADR-004)
+python3 tools/board_report.py ~/.hermes-poc/kanban.db   # 담당자별 집계
+```
+
+가장 실용적인 진입점은 **orchestrator에게 요청만 주는 것**이다. 분해·배정·연결을 알아서 한다:
+
+```bash
+./hermess -p orchestrator chat -q "<하고 싶은 일>. 너는 코드를 못 쓰니 분해해서 배정해라."
+./hermess gateway start     # 나머지는 디스패처가 진행
 ```
 
 ### 리뷰 루프
 
 ```bash
-# 구현자가 request_review → reviewer가 검수 → 반려 시 구현자로 복귀
-$H kanban request-review <id> --reviewer reviewer
-$H kanban request-changes <id> "실패 입력과 기대/실제"
+./hermess kanban request-review <id> --reviewer reviewer
+./hermess kanban request-changes <id> "실패 입력과 기대/실제"
 ```
 
 > **카드 본문에 인수 기준을 반드시 넣는다.** 리뷰 run은 구현자용으로 쓰인 같은 본문을
@@ -92,14 +117,14 @@ $H kanban request-changes <id> "실패 입력과 기대/실제"
 ### 사람이 끼어들기
 
 ```bash
-$H kanban comment <id> "답변"
-$H kanban unblock <id>      # 재spawn된 워커가 코멘트 스레드를 읽는다
+./hermess kanban comment <id> "답변"
+./hermess kanban unblock <id>      # 재spawn된 워커가 코멘트 스레드를 읽는다
 ```
 
 ### AGENTIC 작업 (구현 → 실행 → 자가 수정)
 
 ```bash
-$H kanban create "..." --assignee backend-eng \
+./hermess kanban create "..." --assignee backend-eng \
     --workspace dir:/abs/path --goal --goal-max-turns 15
 ```
 
@@ -109,11 +134,20 @@ $H kanban create "..." --assignee backend-eng \
 ### 체크포인트 / 롤백
 
 ```bash
-$H -p backend-eng chat --checkpoints -q "..."
-$H -p backend-eng checkpoints status     # ← -p 필수. 없으면 0 B로 오보고한다
+./hermess -p backend-eng chat --checkpoints -q "..."
+./hermess -p backend-eng checkpoints status     # ← -p 필수. 없으면 0 B로 오보고한다
 ```
 
 복원은 대화형 `/rollback` 또는 Python API ([ADR-005](docs/adr/ADR-005-operations.md)).
+
+### 운영 상태 점검
+
+```bash
+./hermess doctor              # 설치·인증·런타임 진단
+./hermess kanban stats
+./hermess kanban diagnostics  # 보드의 활성 문제
+./hermess approvals test "rm -rf /"   # 실행 없이 승인 판정만 확인
+```
 
 ---
 
@@ -325,6 +359,7 @@ t_455a8d69  reviewer     독립 검증
 | [`hermess-design-review.md`](hermess-design-review.md) | 실측 기록 — 초기 설계 오류 검증, 반증된 결론 |
 | [`docs/adr/`](docs/adr/) | 설계 결정 5건 |
 | [`profiles/`](profiles/) | 프로필 로스터 (SSOT) + 부트스트랩 |
+| [`hermess`](hermess) | 실행 래퍼 — 환경변수를 잡고 upstream CLI로 넘긴다 |
 | [`tools/board_report.py`](tools/board_report.py) | E2E 테스트 산출물 — 보드 리포팅 도구 |
 | [`docs/bench.json`](docs/) · `bench-luna.csv` · `t1.csv` · `t2-*.csv` | 측정 재현 데이터 |
 | [`hermess-arch.md`](hermess-arch.md) · [`heremss-research.md`](heremss-research.md) | 초기 조사 (일부 오류는 design-review에서 정정) |
