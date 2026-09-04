@@ -1,0 +1,10 @@
+# ADR-002 강제 지점. Hermes는 두 키를 다르게 읽으므로 둘 다 필요하다:
+#   platform_toolsets  → 실제 툴 노출 제한 (cli-config.yaml.example 기준 정식 키)
+#   toolsets           → kanban check_fn이 읽는 키. 예제는 'deprecated'라 하지만
+#                        tools/kanban_tools.py:_profile_has_kanban_toolset()가 이걸 본다.
+platform_toolsets:
+  cli: [kanban, web, search, file, memory, skills]
+toolsets: [kanban, web, search, file, memory, skills]
+model:
+  provider: openai-codex
+  default: gpt-5.3-codex-spark
