@@ -140,6 +140,18 @@ python3 tools/board_report.py ~/.hermes-poc/kanban.db   # 담당자별 집계
 
 복원은 대화형 `/rollback` 또는 Python API ([ADR-005](docs/adr/ADR-005-operations.md)).
 
+### 배너 스킨
+
+```bash
+cp skins/aing.yaml ~/.hermes-poc/skins/ && ./hermess skin use aing
+./hermess skin list          # 목록
+./hermess skin use default   # 되돌리기
+```
+
+기본 카두케우스(⚕) 대신 마스코트가 뜬다. 다른 포즈로 바꾸려면
+`skins/make_skin.py <이미지> <이름>`. upstream을 수정하지 않고
+`skin_engine.py`의 `banner_hero` 확장점을 쓴다.
+
 ### 운영 상태 점검
 
 ```bash
@@ -387,6 +399,7 @@ t_455a8d69  reviewer     독립 검증
 | [`docs/adr/`](docs/adr/) | 설계 결정 5건 |
 | [`profiles/`](profiles/) | 프로필 로스터 (SSOT) + 부트스트랩 |
 | [`hermess`](hermess) | 실행 래퍼 — 환경변수를 잡고 upstream CLI로 넘긴다 |
+| [`skins/`](skins/) | 배너 스킨 (마스코트 히어로 아트) + 생성 스크립트 |
 | [`tools/board_report.py`](tools/board_report.py) | E2E 테스트 산출물 — 보드 리포팅 도구 |
 | [`docs/bench.json`](docs/) · `bench-luna.csv` · `t1.csv` · `t2-*.csv` | 측정 재현 데이터 |
 | [`hermess-arch.md`](hermess-arch.md) · [`heremss-research.md`](heremss-research.md) | 초기 조사 (일부 오류는 design-review에서 정정) |
