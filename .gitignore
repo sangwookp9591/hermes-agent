@@ -1,0 +1,9 @@
+# upstream 참조 클론 (MIT, 438M) — 별도 clone 대상
+hermes-agent/
+
+# 로컬 POC 상태
+.hermes-poc/
+
+.DS_Store
+__pycache__/
+*.pyc
