@@ -1,6 +1,6 @@
 # ADR-002 — Kanban / Bot(Profile) / delegate_task 3계층 경계
 
-- 상태 **Accepted (2026-09-04 실행 검증 완료 — 강제 방법 정정)**
+- 상태 **Accepted (2026-09-04 실행 검증 완료 — T3/T4 리뷰·개입 루프 포함)**
 - 날짜 2026-09-04
 - 관련 [ADR-001](ADR-001-kanban-adoption.md)
 
@@ -111,6 +111,53 @@ orchestrator는 파일을 못 만들지만, 그가 배정한 writer는 만든다
 
 **`reviewer`는 구현자와 반드시 다른 프로필이자 다른 모델이어야 한다.**
 같은 모델이 자기 코드를 채점하면 검증이 무의미하다.
+
+## T3 실측 — 리뷰 되돌림 루프
+
+같은 카드가 lane을 오가며 `task_runs`에 시도 이력이 쌓인다. 결함 있는 FizzBuzz로 검증:
+
+```
+#7   review_requested  @backend-eng   구현 → 리뷰 요청
+#8   changes_requested @reviewer      f(15)='Buzz' 발견 → 반려
+#9   review_requested  @backend-eng   수정 → 재요청
+#10  completed         @reviewer      통과
+```
+
+코드는 실제로 고쳐졌다(`f(15)='FizzBuzz'` 확인). assignee가 lane 전환마다 자동으로 바뀐다.
+
+**부수 확인**: backend-eng가 `kanban_request_changes`를 호출하려 하자
+`run_id mismatch / active run not claimed from review`로 **거부**됐다.
+활성 리뷰 run만 반려할 수 있다 — 권한 가드가 작동한다.
+
+### ⚠ 인수 기준이 카드 본문에 없으면 리뷰가 무력화된다
+
+첫 시도에서 리뷰어는 결함을 **정확히 서술하고도 통과**시켰다:
+
+> "values divisible by both 3 and 5 return `Buzz`" ← 정확히 봤음
+> → 그런데 `completed` 처리
+
+원인은 리뷰어 성능이 아니다. **리뷰 run이 구현자용으로 쓰인 같은 카드 본문을 상속**하는데,
+그 본문에 "무엇이 맞는가"가 없었다. 리뷰어는 판정할 기준이 없었다.
+
+본문에 `ACCEPTANCE CRITERIA`를 넣자 즉시 `request_changes`가 발동했다.
+
+> **규칙**: 리뷰가 붙는 카드는 **본문에 인수 기준을 반드시 넣는다.**
+> 구현 지시와 검증 기준을 한 본문에 함께 쓴다 — 리뷰어는 이것만 보고 판단한다.
+> orchestrator가 카드를 만들 때 이 책임을 진다.
+
+## T4 실측 — 사람 개입 루프
+
+```
+워커가 판단 불가 → kanban_block(kind='needs_input', 질문 기록)  → status: blocked
+사람이 kanban comment 로 답변 + kanban unblock                  → status: ready
+디스패처 재spawn → 워커가 comment 스레드를 읽고 반영             → status: done
+```
+
+검증: 미지정 인사말 태스크 → 워커가 추측하지 않고 blocked + 한국어로 질문 →
+comment로 답변 후 unblock → 재spawn된 워커가 `greeting.txt`에 답변을 정확히 기록.
+
+**프롬프트 수술이나 세션 복구 없이** 사람이 중간에 끼어든다.
+이것이 `delegate_task`로는 불가능한 것이고(headless), Kanban 채택의 주된 근거다.
 
 ## 결과
 
