@@ -188,6 +188,7 @@ reasoning_effort` 컬럼이 사다리를 그대로 표현한다. 라우터 코�
 | 디스패처 데몬 | ✅ 15초 tick 자동 처리 |
 | 체크포인트 복원 | ✅ `WRECKED3` → `BASELINE v3` |
 | 승인 시스템 | ✅ `rm -rf /` deny, 파이프-투-셸 dangerous |
+| **E2E: 요청 → 분해 → 구현 → 검증** | ✅ orchestrator가 3단 파이프라인을 스스로 설계·연결, 데몬이 무인 완주 |
 | 교차 provider 위임 (anthropic ↔ openai-codex) | ✅ 자격증명 해석 |
 | Astra (AGENTIC 축) | ✗ HTTP 400 — 이 계정 미가용 |
 
@@ -253,12 +254,69 @@ toolsets: [kanban, memory, skills]    # kanban check_fn이 읽는 키
 
 리뷰 run은 구현자용 본문을 상속한다. 기준이 없으면 결함을 보고도 통과시킨다.
 
-**7. Kanban v1 스펙 PDF는 "DESIGN ONLY"이고 구현과 다르다**
+**7. `worktree` 워크스페이스는 카드 본문의 절대경로를 무시한다**
+
+카드에 `/abs/path/x.py`를 쓰라고 해도 워커의 쓰기는 `.worktrees/<id>/` 안으로 격리된다.
+격리가 목적이면 맞는 동작이고, 지정 위치에 파일을 남기려면 `dir:<절대경로>`를 쓴다.
+
+**8. `worktree`는 경로를 안 주면 스폰 자체가 실패한다**
+
+```
+task ... has workspace_kind=worktree but no workspace_path,
+and board 'default' has no default_workdir set
+```
+2회 연속 실패 시 서킷 브레이커가 카드를 자동 차단한다(설계대로).
+`kanban boards set-default-workdir default <절대 리포 경로>`로 보드에 기본값을 주거나
+`--workspace worktree:<절대경로>`로 카드마다 지정한다.
+
+**9. Kanban v1 스펙 PDF는 "DESIGN ONLY"이고 구현과 다르다**
 
 스펙 4테이블/14컬럼 → 실제 7테이블/37컬럼.
 **PDF는 설계 근거로만 쓰고 사실은 코드로 확인한다.**
 
 ---
+
+## E2E 실행 기록 (2026-09-04)
+
+깨끗한 `HERMES_HOME`에서 README 순서대로 시작해, orchestrator에게 요청 하나만 주고
+나머지는 맡겼다. 산출물은 [`tools/board_report.py`](tools/board_report.py) — 이 프로젝트가 실제로 쓰는 도구다.
+
+**요청**: "kanban.db를 읽어 담당자별 상태 집계와 run 통계를 출력하는 스크립트. 읽기 전용,
+빈 DB에서 크래시 금지. 너는 코드를 못 쓰니 분해해서 배정해라."
+
+**orchestrator가 스스로 만든 파이프라인** (사람 개입 없이):
+
+```
+t_032e3bbf  architect    스키마·출력·읽기전용 계약 정의
+     │ link
+t_8e5e1b14  backend-eng  구현
+     │ link
+t_455a8d69  reviewer     독립 검증
+```
+
+**run 이력** — 중간 실패와 회복이 그대로 남는다:
+
+```
+#1  completed     @architect    153s
+#2  spawn_failed  @backend-eng    0s   ← worktree 경로 누락
+#3  gave_up       @backend-eng    0s   ← 서킷 브레이커 자동 차단
+#4  completed     @backend-eng  198s   ← 보드 workdir 설정 후 재개
+#5  completed     @reviewer     185s
+```
+
+**독립 검증** (사람이 직접):
+
+| 인수 기준 | 결과 |
+|---|---|
+| 실제 보드 리포트 출력 | ✅ 담당자 3명, 상태 집계, 평균 run 시간 |
+| 빈 DB에서 크래시 금지 | ✅ `(no assignees)`, exit 0 |
+| 읽기 전용 | ✅ INSERT/UPDATE/DELETE/DROP 0건 |
+| 없는 파일 / 인자 누락 | ✅ 명확한 에러 + usage, 크래시 없음 |
+
+리뷰어 자체 판정: *"코드 검사와 실행으로 승인. 엣지 케이스 probe 통과,
+실제 스키마 DB 사본에 대해 해시·스키마·행수 변화 없이 2회 통과."*
+
+**이 실행에서 배운 것**: 위 함정 7·8번. orchestrator SOUL.md에 워크스페이스 규칙을 추가했다.
 
 ## 문서
 
@@ -267,6 +325,7 @@ toolsets: [kanban, memory, skills]    # kanban check_fn이 읽는 키
 | [`hermess-design-review.md`](hermess-design-review.md) | 실측 기록 — 초기 설계 오류 검증, 반증된 결론 |
 | [`docs/adr/`](docs/adr/) | 설계 결정 5건 |
 | [`profiles/`](profiles/) | 프로필 로스터 (SSOT) + 부트스트랩 |
+| [`tools/board_report.py`](tools/board_report.py) | E2E 테스트 산출물 — 보드 리포팅 도구 |
 | [`docs/bench.json`](docs/) · `bench-luna.csv` · `t1.csv` · `t2-*.csv` | 측정 재현 데이터 |
 | [`hermess-arch.md`](hermess-arch.md) · [`heremss-research.md`](heremss-research.md) | 초기 조사 (일부 오류는 design-review에서 정정) |
 
