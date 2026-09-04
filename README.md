@@ -303,7 +303,34 @@ and board 'default' has no default_workdir set
 `kanban boards set-default-workdir default <절대 리포 경로>`로 보드에 기본값을 주거나
 `--workspace worktree:<절대경로>`로 카드마다 지정한다.
 
-**9. Kanban v1 스펙 PDF는 "DESIGN ONLY"이고 구현과 다르다**
+**9. `hermes-agent/` 안에서 실행하면 upstream AGENTS.md(95KB)가 컨텍스트로 잡힌다**
+
+```
+⚠️ Context file AGENTS.md TRUNCATED: 95167 chars exceeds limit of 65280
+```
+
+모델 문제가 아니라 **cwd 문제**다. Hermes는 현재 디렉터리의 `AGENTS.md`를 컨텍스트 파일로
+자동 로드하는데, upstream 리포에는 95KB짜리 기여자 가이드가 있다.
+한도는 모델 컨텍스트에 비례한다(spark 128K → 30720자, luna 272K → 65280자) —
+**큰 모델로 바꿔도 95KB는 여전히 초과한다.**
+
+`./hermess` 래퍼는 `uv run --project`로 환경만 가리키고 **cwd를 옮기지 않는다.**
+프로젝트 루트에서 실행하면 경고가 사라진다.
+
+**10. 자가학습은 자동이 아니다 — 세 가지가 맞아야 한다**
+
+| 무엇을 남기고 싶은가 | 어디에 |
+|---|---|
+| 말투·역할·행동 규칙 (영구) | **`SOUL.md`** — 프로필별. 매 턴 프롬프트에 들어간다 |
+| 사용자 선호 (예: "간결하게") | `memories/USER.md` — memory 툴의 `user` 스코프 |
+| 에이전트가 배운 사실 | `memories/MEMORY.md` — memory 툴의 `memory` 스코프 |
+| 재사용할 절차 | `skills/` — Curator가 생성·개선 |
+
+자동 저장(memory nudge)은 **10 user turn마다** 발동한다(`memory.nudge_interval`).
+2~3턴 대화하고 나가면 아무것도 안 남는다. 확실히 남기려면 그 자리에서
+"이걸 기억해"라고 명시하거나, 말투 같은 항구적 규칙은 `SOUL.md`에 직접 쓴다.
+
+**11. Kanban v1 스펙 PDF는 "DESIGN ONLY"이고 구현과 다르다**
 
 스펙 4테이블/14컬럼 → 실제 7테이블/37컬럼.
 **PDF는 설계 근거로만 쓰고 사실은 코드로 확인한다.**

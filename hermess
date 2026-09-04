@@ -8,6 +8,10 @@
 #   ./hermess gateway start              운영 (내장 디스패처)
 #
 # HERMES_HOME 을 바꾸려면: HERMES_HOME=~/.hermes-other ./hermess ...
+#
+# 주의: 여기서 `cd hermes-agent` 를 하면 안 된다. upstream 리포의 AGENTS.md(95KB)가
+# 컨텍스트 파일로 잡혀 "TRUNCATED: 95167 chars exceeds limit" 경고가 뜬다.
+# uv 의 --project 로 환경만 가리키고 cwd 는 호출자 위치를 유지한다.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +27,6 @@ fi
 export PATH="$HOME/.local/bin:$PATH"
 export HERMES_HOME="${HERMES_HOME:-$HOME/.hermes-poc}"
 export CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+export PYTHONPATH="$UPSTREAM${PYTHONPATH:+:$PYTHONPATH}"
 
-cd "$UPSTREAM"
-exec uv run ./hermes "$@"
+exec uv run --project "$UPSTREAM" python "$UPSTREAM/hermes" "$@"
