@@ -12,8 +12,9 @@
 
 1. **오케스트레이터를 직접 만들지 않는다.** 만들려던 구조가 Hermes Kanban으로 이미 구현돼 있고,
    실행으로 동작을 확인했다. 우리가 작성할 것은 프로필 정의와 스킬뿐이다.
-2. **GPT 제약에는 만료일이 있다.** "spark만 사용 가능"은 권한이 아니라 **quota 소진**이며
-   2026-09-07 11:41에 해제된다. 아키텍처를 단일 모델에 고정하지 않는다.
+2. **기본 실행 모델은 Luna.** 초기의 "spark만 가능"은 권한이 아니라 quota 소진이었고
+   회복 후 재측정 결과 **spark는 Luna보다 추론 토큰을 4배, Sol보다 8배 쓴다**(정답률 동일).
+   spark는 quota 폴백으로 강등했다.
 3. **모델 라우팅 사다리는 코드가 아니라 보드 컬럼이다.**
    `model_override` · `provider_override` · `reasoning_effort`가 태스크 행에 있다.
 
@@ -88,7 +89,9 @@ Kanban            역할 경계를 넘고 · 재시작을 견디고 · 사람이
 | 교차 provider 위임 (anthropic ↔ openai-codex) | ✅ 자격증명 해석 확인 |
 | **리뷰 되돌림 루프 (T3)** | ✅ 구현 → 반려 → 수정 → 통과, run 4건 이력 |
 | **사람 개입 루프 (T4)** | ✅ block → comment → unblock → 답변 반영 |
-| **effort 차등 작동 (T1)** | ⚠ `low→medium`만 유효. `high`/`xhigh`는 **구분 안 됨** |
+| **effort 차등 (T1/T2)** | ⚠ spark `high→xhigh` **무효**(평균이 오히려 낮음). luna는 `max`까지 유효 |
+| **모델 효율 (T2)** | spark 1211 / luna 295 / sol 155 / terra 154 토큰 — 동일 문제·동일 정답 |
+| **Astra (AGENTIC 축)** | ✗ HTTP 400 — 이 계정 미가용. `--goal` 루프로 대체 |
 
 ### 뒤집힌 초기 결론
 
@@ -122,7 +125,12 @@ toolsets: [kanban, memory, skills]    # kanban check_fn이 읽는 키
 산출물을 남기려면 `--workspace dir:<절대경로>` / `worktree:` 를 쓰거나
 `kanban_complete(artifacts=[...])`로 명시 선언한다. `dir:` 보존은 실측 확인했다.
 
-**5. 리뷰가 붙는 카드는 본문에 인수 기준을 반드시 넣을 것**
+**5. 모델 가용성은 "OK" 출력으로 판단하지 말 것**
+
+`-m astra` 같은 존재하지 않는 slug에도 grep이 "OK"를 잡아낸 적이 있다.
+실제로는 HTTP 400이었다. **전체 출력 또는 `session_model_usage.model`로 확인한다.**
+
+**6. 리뷰가 붙는 카드는 본문에 인수 기준을 반드시 넣을 것**
 
 리뷰 run은 **구현자용으로 쓰인 같은 카드 본문을 상속**한다. 기준이 없으면
 리뷰어는 결함을 정확히 보고도 통과시킨다(T3 실측). 판정할 대상이 없기 때문이다.

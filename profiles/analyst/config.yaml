@@ -8,4 +8,4 @@ platform_toolsets:
 toolsets: [kanban, file, web, search, memory, skills]
 model:
   provider: openai-codex
-  default: gpt-5.3-codex-spark
+  default: gpt-5.6-luna
